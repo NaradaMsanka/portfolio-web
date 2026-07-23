@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { addDoc, collection, getFirestore, serverTimestamp } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,16 +12,8 @@ const firebaseConfig = {
 
 export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean);
 
-function getDatabase() {
+export function getClientDatabase() {
   if (!isFirebaseConfigured) throw new Error('Firebase environment variables are not configured.');
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   return getFirestore(app);
-}
-
-export async function createEnquiry(enquiry) {
-  return addDoc(collection(getDatabase(), 'enquiries'), {
-    ...enquiry,
-    status: 'new',
-    createdAt: serverTimestamp(),
-  });
 }
