@@ -13,15 +13,14 @@ export default function ContactPage() {
     setError('');
     const form = event.currentTarget;
     const values = Object.fromEntries(new FormData(form));
-    let firebaseConfigured = true;
     try {
-      const firebase = await import('../firebase');
-      firebaseConfigured = firebase.isFirebaseConfigured;
-      await firebase.createEnquiry(values);
+      const response = await fetch('/api/enquiries', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || 'Your enquiry could not be sent.');
       form.reset();
       setStatus('sent');
     } catch (submitError) {
-      setError(firebaseConfigured ? 'Your enquiry could not be sent. Please try again or contact us by phone.' : 'Firebase is not configured yet. Add the VITE_FIREBASE_* values to your .env file.');
+      setError(submitError.message || 'Your enquiry could not be sent. Please try again or contact us by phone.');
       setStatus('error');
       console.error(submitError);
     }
