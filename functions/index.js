@@ -1,24 +1,40 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
+import { v2 as cloudinary } from 'cloudinary';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import { initializeApp } from 'firebase-admin/app';
+import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
-import { defineSecret } from 'firebase-functions/params';
-import { onRequest } from 'firebase-functions/v2/https';
 import helmet from 'helmet';
 import { z } from 'zod';
 
-initializeApp();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.resolve(__dirname, '..', 'dist');
+
+const serviceAccount = {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+};
+
+if (serviceAccount.projectId && serviceAccount.clientEmail && serviceAccount.privateKey) {
+  initializeApp({ credential: cert(serviceAccount) });
+} else {
+  initializeApp();
+}
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
+});
 
 const db = getFirestore();
 const app = express();
-
-const adminUsername = defineSecret('ADMIN_USERNAME');
-const adminPasswordHash = defineSecret('ADMIN_PASSWORD_HASH');
-const adminSessionSecret = defineSecret('ADMIN_SESSION_SECRET');
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const SESSION_COOKIE = 'aventro_admin_session';
@@ -91,6 +107,12 @@ app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cookieParser());
 
+function envValue(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not configured.`);
+  return value;
+}
+
 function requestOriginMatches(req) {
   const origin = req.get('origin');
   if (!origin) return false;
@@ -108,13 +130,13 @@ function requireSameOrigin(req, res, next) {
 }
 
 function sessionDocumentId(token) {
-  return createHmac('sha256', adminSessionSecret.value()).update(token).digest('hex');
+  return createHmac('sha256', envValue('ADMIN_SESSION_SECRET')).update(token).digest('hex');
 }
 
 function sessionCookieOptions() {
   return {
     httpOnly: true,
-    secure: process.env.FUNCTIONS_EMULATOR !== 'true',
+    secure: process.env.NODE_ENV !== 'development',
     sameSite: 'strict',
     path: '/',
     maxAge: SESSION_DURATION_MS,
@@ -179,14 +201,33 @@ function imagePaths(record, fields) {
   return fields.flatMap((field) => Array.isArray(record?.[field]) ? record[field] : record?.[field] ? [record[field]] : []).filter(Boolean);
 }
 
-async function deleteImages(paths) {
-  const bucket = getStorage().bucket();
-  await Promise.all(paths.map((path) => bucket.file(path).delete({ ignoreNotFound: true }).catch((error) => console.error('Storage cleanup failed', error?.message))));
+function uploadToCloudinary(buffer, folder) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: `aventro/${folder}`,
+        resource_type: 'image',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(result);
+      },
+    );
+
+    uploadStream.end(buffer);
+  });
+}
+
+async function deleteImages(publicIds) {
+  await Promise.all(publicIds.map((publicId) => cloudinary.uploader.destroy(publicId, { invalidate: true }).catch((error) => console.error('Cloudinary cleanup failed', error?.message))));
 }
 
 app.post('/api/admin/uploads', requireAdmin, requireSameOrigin, express.raw({ type: [...IMAGE_TYPES.keys()], limit: MAX_IMAGE_BYTES }), async (req, res) => {
   try {
-    const bucket = getStorage().bucket();
     const contentType = req.get('content-type')?.split(';')[0];
     const extension = IMAGE_TYPES.get(contentType);
     const folder = String(req.query.folder || '');
@@ -195,14 +236,8 @@ app.post('/api/admin/uploads', requireAdmin, requireSameOrigin, express.raw({ ty
     if (!extension || !['projects', 'reviews', 'company-logos'].includes(folder) || !entityId || !Buffer.isBuffer(buffer) || buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) {
       return res.status(400).json({ error: 'Invalid image upload.' });
     }
-    const token = randomUUID();
-    const path = `${folder}/${entityId}/${Date.now()}-${randomUUID()}.${extension}`;
-    await bucket.file(path).save(buffer, {
-      resumable: false,
-      metadata: { contentType, cacheControl: 'public,max-age=31536000,immutable', metadata: { firebaseStorageDownloadTokens: token } },
-    });
-    const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
-    return res.status(201).json({ url, path });
+    const result = await uploadToCloudinary(buffer, folder);
+    return res.status(201).json({ url: result.secure_url, path: result.public_id });
   } catch (error) {
     console.error('Image upload failed', error?.message);
     return res.status(500).json({ error: 'Unable to upload the image.' });
@@ -215,19 +250,20 @@ app.post('/api/admin/login', loginLimiter, requireSameOrigin, async (req, res, n
   const input = parseBody(loginSchema, req, res);
   if (!input) return;
   try {
-    const usernameMatches = input.username === adminUsername.value();
-    const passwordMatches = await bcrypt.compare(input.password, adminPasswordHash.value());
+    const username = envValue('ADMIN_USERNAME');
+    const usernameMatches = input.username === username;
+    const passwordMatches = await bcrypt.compare(input.password, envValue('ADMIN_PASSWORD_HASH'));
     if (!usernameMatches || !passwordMatches) return res.status(401).json({ error: 'Invalid username or password.' });
 
     const token = `${randomUUID()}${randomUUID()}`;
     const expiresAt = Date.now() + SESSION_DURATION_MS;
     await db.collection('adminSessions').doc(sessionDocumentId(token)).set({
-      username: adminUsername.value(),
+      username,
       createdAt: FieldValue.serverTimestamp(),
       expiresAt: Timestamp.fromMillis(expiresAt),
     });
     res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
-    return res.json({ username: adminUsername.value(), expiresAt: new Date(expiresAt).toISOString() });
+    return res.json({ username, expiresAt: new Date(expiresAt).toISOString() });
   } catch (error) {
     return next(error);
   }
@@ -320,7 +356,14 @@ for (const [routeName, config] of Object.entries(contentTypes)) {
   });
 }
 
-app.use((_req, res) => res.status(404).json({ error: 'Endpoint not found.' }));
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint not found.' }));
+app.use(express.static(publicDir));
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
+  return res.sendFile(path.join(publicDir, 'index.html'), (error) => {
+    if (error) next();
+  });
+});
 app.use((error, _req, res, _next) => {
   if (error?.type === 'entity.too.large') return res.status(413).json({ error: 'Request is too large.' });
   if (error instanceof SyntaxError) return res.status(400).json({ error: 'Invalid JSON request.' });
@@ -328,9 +371,8 @@ app.use((error, _req, res, _next) => {
   return res.status(500).json({ error: 'Unexpected server error.' });
 });
 
-export const api = onRequest({
-  region: 'asia-south1',
-  memory: '256MiB',
-  timeoutSeconds: 60,
-  secrets: [adminUsername, adminPasswordHash, adminSessionSecret],
-}, app);
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

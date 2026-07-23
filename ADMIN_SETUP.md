@@ -1,6 +1,6 @@
 # Aventro administrator setup
 
-The dashboard is available at `/admin` and uses one administrator account configured through private Firebase secrets. Passwords and session tokens are never stored in browser storage.
+The dashboard is available at `/admin` and uses one administrator account configured through backend environment variables. Passwords and session tokens are never stored in browser storage.
 
 ## Install
 
@@ -25,21 +25,9 @@ npm run admin:generate-session-secret
 
 Keep both outputs private. Do not put the raw password, password hash, or session secret in Git, Firestore, browser storage, or a `VITE_` variable.
 
-## Configure Firebase
+## Configure Render environment
 
-After installing the Firebase CLI and selecting the project, set these three Cloud Functions secrets:
-
-```powershell
-firebase functions:secrets:set ADMIN_USERNAME
-firebase functions:secrets:set ADMIN_PASSWORD_HASH
-firebase functions:secrets:set ADMIN_SESSION_SECRET
-```
-
-- `ADMIN_USERNAME`: the administrator username you choose.
-- `ADMIN_PASSWORD_HASH`: output from `npm run admin:hash-password`.
-- `ADMIN_SESSION_SECRET`: output from `npm run admin:generate-session-secret`.
-
-For local emulators only, create the ignored file `functions/.secret.local`:
+Set these administrator variables in Render:
 
 ```dotenv
 ADMIN_USERNAME=your-admin-username
@@ -47,22 +35,37 @@ ADMIN_PASSWORD_HASH=your-generated-password-hash
 ADMIN_SESSION_SECRET=your-random-session-secret
 ```
 
+- `ADMIN_USERNAME`: the administrator username you choose.
+- `ADMIN_PASSWORD_HASH`: output from `npm run admin:hash-password`.
+- `ADMIN_SESSION_SECRET`: output from `npm run admin:generate-session-secret`.
+
+Set these Cloudinary variables in Render:
+
+```dotenv
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+```
+
+Never put `CLOUDINARY_API_SECRET` in React code, `.env` variables with `VITE_`, or any public client-side upload preset. Image uploads are signed through the backend.
+
+Set the Firestore service-account variables described in `FIREBASE_SETUP.md`.
+
 ## Run locally
 
-```powershell
-npm run build
-npm run emulators
-```
-
-Open `http://127.0.0.1:5000/admin`. Use the username you configured and the original password used to create the bcrypt hash.
-
-## Deploy
+Set the same backend variables in your shell, then run:
 
 ```powershell
-firebase deploy --only firestore:rules,storage
 npm run build
-firebase deploy --only functions,hosting
+npm start
 ```
+
+Open `http://127.0.0.1:3000/admin`. Use the username you configured and the original password used to create the bcrypt hash.
+
+## Deploy on Render
+
+Use `npm install && npm --prefix functions install && npm run build` as the build command.
+Use `npm start` as the start command.
 
 ## Security behavior
 
@@ -70,6 +73,7 @@ firebase deploy --only functions,hosting
 - Sessions are stored privately in Firestore and expire after eight hours.
 - The browser receives only an `HttpOnly`, `SameSite=Strict` cookie.
 - Every admin list, write, delete, and upload request validates the server session.
-- Firestore and Storage rules continue to deny direct browser writes.
+- Firestore rules continue to deny direct browser writes.
+- Images are uploaded and deleted through Cloudinary using backend credentials only.
 
 For automatic document cleanup, a Firestore TTL policy can be enabled on `adminSessions.expiresAt`. Session validation does not rely on TTL; expired sessions are rejected by the API.
