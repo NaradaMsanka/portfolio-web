@@ -4,9 +4,6 @@ dist/
 .env.example
 .env.local
 .env.*.local
-functions/.env
-functions/.env.*
-functions/.secret.local
 serviceAccountKey.json
 *-firebase-adminsdk-*.json
 coverage/
