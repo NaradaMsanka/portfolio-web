@@ -1,10 +1,10 @@
-import { AlertCircle, LockKeyhole, LogIn, User } from 'lucide-react';
+import { AlertCircle, LockKeyhole, LogIn } from 'lucide-react';
 import { useState } from 'react';
 import Logo from '../../components/Logo';
 import { adminApi } from '../services/adminApi';
 
 export default function AdminLogin({ initialError = '', onAuthenticated }) {
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [error, setError] = useState(initialError);
   const [submitting, setSubmitting] = useState(false);
 
@@ -33,7 +33,18 @@ export default function AdminLogin({ initialError = '', onAuthenticated }) {
         <span className="admin-kicker">Administrator access</span>
         <h1>Sign in to continue</h1>
         <p>Use the administrator credentials configured for this Firebase project.</p>
-        <label><span>Username</span><div className="admin-input-wrap"><User size={18} /><input name="username" value={credentials.username} onChange={change} autoComplete="username" required autoFocus /></div></label>
+        <label className="admin-field">
+          <span>Email address</span>
+
+          <input
+            type="email"
+            name="email"
+            value={credentials.email}
+            onChange={change}
+            autoComplete="username"
+            required
+          />
+        </label>
         <label><span>Password</span><div className="admin-input-wrap"><LockKeyhole size={18} /><input type="password" name="password" value={credentials.password} onChange={change} autoComplete="current-password" required /></div></label>
         {error && <div className="admin-alert error" role="alert"><AlertCircle size={17} /><span>{error}</span></div>}
         <button className="admin-primary-button" type="submit" disabled={submitting}><LogIn size={18} />{submitting ? 'Signing in...' : 'Sign in'}</button>

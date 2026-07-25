@@ -1,7 +1,13 @@
 import { useState } from 'react';
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+} from 'firebase/firestore';
 import Icon from '../components/Icon';
 import SectionTitle from '../components/SectionTitle';
 import { services } from '../data';
+import { getClientDatabase } from '../firebase';
 
 export default function ContactPage() {
   const [status, setStatus] = useState('idle');
@@ -12,11 +18,21 @@ export default function ContactPage() {
     setStatus('sending');
     setError('');
     const form = event.currentTarget;
-    const values = Object.fromEntries(new FormData(form));
     try {
-      const response = await fetch('/api/enquiries', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Your enquiry could not be sent.');
+      const values = Object.fromEntries(new FormData(form));
+
+      await addDoc(
+        collection(getClientDatabase(), 'enquiries'),
+        {
+          name: String(values.name || '').trim(),
+          email: String(values.email || '').trim(),
+          phone: String(values.phone || '').trim(),
+          type: String(values.type || '').trim(),
+          message: String(values.message || '').trim(),
+          createdAt: serverTimestamp(),
+        }
+      );
+
       form.reset();
       setStatus('sent');
     } catch (submitError) {

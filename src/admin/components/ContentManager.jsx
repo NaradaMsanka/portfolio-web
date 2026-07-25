@@ -27,7 +27,7 @@ function StatusBadge({ item, type }) {
 }
 
 function ConfirmDialog({ item, onCancel, onConfirm, deleting }) {
-  return <div className="admin-dialog-backdrop" role="presentation"><div className="admin-confirm-dialog" role="alertdialog" aria-modal="true"><span className="admin-danger-icon"><Trash2 size={22} /></span><h3>Delete this content?</h3><p>This action removes the record and its managed images. It cannot be undone.</p><div><button type="button" className="admin-secondary-button" onClick={onCancel}>Cancel</button><button type="button" className="admin-danger-button" onClick={() => onConfirm(item)} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete'}</button></div></div></div>;
+  return <div className="admin-dialog-backdrop" role="presentation"><div className="admin-confirm-dialog" role="alertdialog" aria-modal="true"><span className="admin-danger-icon"><Trash2 size={22} /></span><h3>Delete this content?</h3><p>This removes the content from the website.<br />The Cloudinary image must be deleted manually if it is no longer needed.</p><div><button type="button" className="admin-secondary-button" onClick={onCancel}>Cancel</button><button type="button" className="admin-danger-button" onClick={() => onConfirm(item)} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete'}</button></div></div></div>;
 }
 
 function TextField({ label, name, value, onChange, required = false, type = 'text', maxLength }) {
