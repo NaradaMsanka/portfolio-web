@@ -1,52 +1,243 @@
-async function request(path, options = {}) {
-  const headers = { ...options.headers };
-  if (options.body && !(options.body instanceof Blob) && !(options.body instanceof ArrayBuffer)) headers['Content-Type'] = 'application/json';
-  const response = await fetch(path, { credentials: 'include', ...options, headers });
-  if (response.status === 204) return null;
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    throw new Error('The admin API is unavailable. Run the Firebase emulators or deploy the Firebase Functions backend.');
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
+
+import {
+  getClientAuth,
+  getClientDatabase,
+} from "../../firebase";
+
+const collectionNames = {
+  projects: "projects",
+  reviews: "reviews",
+  "company-logos": "companyLogos",
+};
+
+function createError(message, status = 500) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function waitForAuthentication() {
+  const auth = getClientAuth();
+
+  return new Promise((resolve) => {
+    let unsubscribe = () => {};
+
+    unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
+      resolve(user);
+    });
+  });
+}
+
+async function requireAdmin() {
+  const user = await waitForAuthentication();
+
+  if (!user) {
+    throw createError("Administrator login required.", 401);
   }
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload.error || 'The request could not be completed.');
-    error.status = response.status;
-    error.fields = payload.fields;
-    throw error;
+
+  return user;
+}
+
+function getCollectionName(type) {
+  const collectionName = collectionNames[type];
+
+  if (!collectionName) {
+    throw createError("Invalid content type.", 400);
   }
-  return payload;
+
+  return collectionName;
 }
 
 export const adminApi = {
-  session: () => request('/api/admin/session'),
-  login: (credentials) => request('/api/admin/login', { method: 'POST', body: JSON.stringify(credentials) }),
-  logout: () => request('/api/admin/logout', { method: 'POST' }),
-  list: async (type) => {
-    const payload = await request(`/api/admin/${type}`);
-    if (!Array.isArray(payload?.items)) throw new Error('The admin API returned invalid content data.');
-    return payload;
+  async session() {
+    const user = await waitForAuthentication();
+
+    if (!user) {
+      throw createError("No active session.", 401);
+    }
+
+    return {
+      username: user.email,
+    };
   },
-  create: (type, item) => request(`/api/admin/${type}`, { method: 'POST', body: JSON.stringify(item) }),
-  update: (type, id, item) => request(`/api/admin/${type}/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(item) }),
-  remove: (type, id) => request(`/api/admin/${type}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  async login({ email, password }) {
+    const credential = await signInWithEmailAndPassword(
+      getClientAuth(),
+      email.trim(),
+      password
+    );
+
+    return {
+      username: credential.user.email,
+    };
+  },
+
+  async logout() {
+    await signOut(getClientAuth());
+  },
+
+  async list(type) {
+    await requireAdmin();
+
+    const collectionName = getCollectionName(type);
+    const snapshot = await getDocs(
+      collection(getClientDatabase(), collectionName)
+    );
+
+    const items = snapshot.docs.map((documentSnapshot) => ({
+      id: documentSnapshot.id,
+      ...documentSnapshot.data(),
+    }));
+
+    return { items };
+  },
+
+  async create(type, item) {
+    await requireAdmin();
+
+    const collectionName = getCollectionName(type);
+
+    const documentReference = await addDoc(
+      collection(getClientDatabase(), collectionName),
+      {
+        ...item,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }
+    );
+
+    return {
+      item: {
+        id: documentReference.id,
+        ...item,
+      },
+    };
+  },
+
+  async update(type, id, item) {
+    await requireAdmin();
+
+    const collectionName = getCollectionName(type);
+
+    await updateDoc(
+      doc(getClientDatabase(), collectionName, id),
+      {
+        ...item,
+        updatedAt: serverTimestamp(),
+      }
+    );
+
+    return {
+      item: {
+        id,
+        ...item,
+      },
+    };
+  },
+
+  async remove(type, id) {
+    await requireAdmin();
+
+    const collectionName = getCollectionName(type);
+
+    await deleteDoc(
+      doc(getClientDatabase(), collectionName, id)
+    );
+
+    return null;
+  },
 };
 
-export function uploadAdminImage({ file, folder, entityId, onProgress }) {
+export function uploadAdminImage({
+  file,
+  onProgress,
+}) {
   return new Promise((resolve, reject) => {
+    if (!getClientAuth().currentUser) {
+      reject(new Error("Administrator login required."));
+      return;
+    }
+
+    const cloudName =
+      import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+
+    const uploadPreset =
+      import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
+    if (!cloudName || !uploadPreset) {
+      reject(
+        new Error("Cloudinary configuration is missing.")
+      );
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
+
     const xhr = new XMLHttpRequest();
-    const query = new URLSearchParams({ folder, entityId });
-    xhr.open('POST', `/api/admin/uploads?${query}`);
-    xhr.withCredentials = true;
-    xhr.setRequestHeader('Content-Type', file.type);
+
+    xhr.open(
+      "POST",
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`
+    );
+
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+      if (event.lengthComputable) {
+        const percentage = Math.round(
+          (event.loaded / event.total) * 100
+        );
+
+        onProgress?.(percentage);
+      }
     };
+
     xhr.onload = () => {
-      const payload = JSON.parse(xhr.responseText || '{}');
-      if (xhr.status >= 200 && xhr.status < 300) resolve(payload);
-      else reject(new Error(payload.error || 'Image upload failed.'));
+      let result = {};
+
+      try {
+        result = JSON.parse(xhr.responseText);
+      } catch {
+        reject(new Error("Invalid Cloudinary response."));
+        return;
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(
+          new Error(
+            result.error?.message || "Image upload failed."
+          )
+        );
+        return;
+      }
+
+      resolve({
+        url: result.secure_url,
+        path: result.public_id,
+      });
     };
-    xhr.onerror = () => reject(new Error('Image upload failed.'));
-    xhr.send(file);
+
+    xhr.onerror = () => {
+      reject(new Error("Image upload failed."));
+    };
+
+    xhr.send(formData);
   });
 }
