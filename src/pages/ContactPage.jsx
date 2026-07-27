@@ -29,6 +29,7 @@ export default function ContactPage() {
           phone: String(values.phone || '').trim(),
           type: String(values.type || '').trim(),
           message: String(values.message || '').trim(),
+          status: 'unread',
           createdAt: serverTimestamp(),
         }
       );

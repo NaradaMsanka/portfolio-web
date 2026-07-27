@@ -90,6 +90,34 @@ body:has(.admin-dashboard),body:has(.admin-login-page),body:has(.admin-session-l
 .admin-empty-state{min-height:300px;display:grid;place-content:center;justify-items:center;border:1px dashed #c7d4e1;border-radius:5px;background:#fff;color:var(--admin-muted);text-align:center}
 .admin-empty-state h3{margin:13px 0 4px;color:var(--admin-text);font-size:17px}
 .admin-empty-state p{font-size:11px}
+.admin-enquiry-layout{min-height:560px;display:grid;grid-template-columns:minmax(300px,420px) minmax(0,1fr);overflow:hidden;border:1px solid var(--admin-line);border-radius:5px;background:#fff}
+.admin-enquiry-list{max-height:680px;overflow:auto;border-right:1px solid var(--admin-line)}
+.admin-enquiry-item{position:relative;width:100%;min-height:112px;padding:18px 18px 18px 25px;display:flex;gap:10px;border:0;border-bottom:1px solid #e8edf2;background:#fff;color:var(--admin-text);text-align:left}
+.admin-enquiry-item:hover,.admin-enquiry-item.selected{background:#f5f9fd}
+.admin-enquiry-item.unread{background:#f7fbff}
+.admin-enquiry-dot{position:absolute;left:10px;top:23px;width:6px;height:6px;border-radius:50%;background:transparent}
+.admin-enquiry-item.unread .admin-enquiry-dot{background:var(--admin-blue)}
+.admin-enquiry-item>div{min-width:0;flex:1}
+.admin-enquiry-item>div>span{display:flex;justify-content:space-between;gap:12px}
+.admin-enquiry-item b{font-size:11px}
+.admin-enquiry-item time{color:var(--admin-muted);font-size:8px;white-space:nowrap}
+.admin-enquiry-item strong{display:block;margin-top:7px;color:#42617e;font-size:9px}
+.admin-enquiry-item p{margin:5px 0 0;overflow:hidden;color:var(--admin-muted);font-size:9px;line-height:1.5;text-overflow:ellipsis;white-space:nowrap}
+.admin-enquiry-detail{min-width:0;display:flex;flex-direction:column}
+.admin-enquiry-detail>header{padding:24px;display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--admin-line)}
+.admin-enquiry-detail>header h3{margin:10px 0 4px;font:600 21px 'Outfit',Arial,sans-serif;letter-spacing:0}
+.admin-enquiry-detail>header p{margin:0;color:var(--admin-muted);font-size:9px}
+.admin-enquiry-detail>header>button{width:34px;height:34px;border:0;display:grid;place-items:center;background:#eef3f7;color:#4f657b}
+.admin-enquiry-contact{padding:20px 24px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border-bottom:1px solid var(--admin-line);background:#fafbfd}
+.admin-enquiry-contact>div>span{display:block;margin-bottom:7px;font-size:12px;font-weight:800}
+.admin-enquiry-contact a{margin-top:5px;display:flex;align-items:center;gap:7px;color:#41617f;font-size:10px}
+.admin-mail-state{padding:6px 9px;display:inline-flex;align-items:center;gap:5px;border-radius:20px;background:#edf0f3;color:#657586;font-size:8px;font-weight:800;text-transform:capitalize;white-space:nowrap}
+.admin-mail-state.sent{background:#e6f7ec;color:#24743e}
+.admin-mail-state.failed{background:#fff0f0;color:var(--admin-danger)}
+.admin-enquiry-message{min-height:170px;padding:28px 24px;flex:1;color:#314a63;font-size:12px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}
+.admin-enquiry-detail>footer{padding:16px 24px;display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--admin-line)}
+.admin-enquiry-detail>footer a{text-decoration:none}
+.admin-enquiry-placeholder{margin:auto;display:grid;justify-items:center;gap:10px;color:var(--admin-muted);font-size:10px}
 .admin-editor-backdrop,.admin-dialog-backdrop{position:fixed;z-index:1000;inset:0;padding:22px;display:flex;justify-content:flex-end;background:rgba(2,13,26,.66);backdrop-filter:blur(6px)}
 .admin-editor{width:min(720px,100%);height:100%;display:flex;flex-direction:column;border-radius:6px;background:#fff;box-shadow:0 30px 90px rgba(0,0,0,.35)}
 .admin-editor header{padding:20px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--admin-line)}
@@ -158,6 +186,10 @@ body:has(.admin-dashboard),body:has(.admin-login-page),body:has(.admin-session-l
 .admin-summary-grid article{min-height:115px;padding:17px}
 .admin-summary-grid strong{font-size:29px}
 .admin-table{min-width:760px}
+.admin-enquiry-layout{grid-template-columns:1fr;min-height:0}
+.admin-enquiry-list{max-height:none;border-right:0}
+.admin-enquiry-detail{position:fixed;z-index:1000;inset:64px 0 0;background:#fff;overflow:auto}
+.admin-enquiry-detail:has(.admin-enquiry-placeholder){display:none}
 .admin-editor-backdrop{padding:0}
 .admin-editor{width:100%;border-radius:0}
 .admin-form-grid{grid-template-columns:1fr}
