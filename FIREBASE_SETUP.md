@@ -18,10 +18,16 @@ Run the app locally with:
 npm run dev
 ```
 
-Build and deploy Firebase Hosting and Firestore rules with:
+Create a Gmail App Password for `suneth2003narada@gmail.com`, then store it as a Firebase secret. Do not use the normal Gmail password:
+
+```powershell
+firebase functions:secrets:set GMAIL_APP_PASSWORD
+```
+
+The Firebase project must be on the Blaze plan to deploy Cloud Functions. Build and deploy Firebase Hosting, Firestore rules, and the email notification function with:
 
 ```powershell
 npm run deploy
 ```
 
-The browser uses Firebase Authentication for the administrator session, Firestore for content and enquiries, and Cloudinary for image uploads.
+The browser uses Firebase Authentication for the administrator session, Firestore for content and enquiries, and Cloudinary for image uploads. A Firestore-triggered Cloud Function emails each new enquiry to `suneth2003narada@gmail.com`; the Gmail App Password remains server-side in Firebase Secret Manager.
