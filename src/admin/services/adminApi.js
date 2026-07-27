@@ -23,6 +23,7 @@ const collectionNames = {
   projects: "projects",
   reviews: "reviews",
   "company-logos": "companyLogos",
+  enquiries: "enquiries",
 };
 
 function createError(message, status = 500) {
