@@ -1,8 +1,9 @@
-import { Building2, CheckCircle2, Clock3, FolderKanban, MessageSquareQuote, Telescope } from 'lucide-react';
+import { Building2, CheckCircle2, Clock3, FolderKanban, Inbox, MessageSquareQuote, Telescope } from 'lucide-react';
 
 export default function DashboardOverview({ data, loading }) {
   const projects = data.projects || [];
   const cards = [
+    ['Unread enquiries', (data.enquiries || []).filter((item) => item.status !== 'read').length, Inbox],
     ['Total projects', projects.length, FolderKanban],
     ['Future projects', projects.filter((item) => item.status === 'future').length, Telescope],
     ['Ongoing projects', projects.filter((item) => item.status === 'ongoing').length, Clock3],

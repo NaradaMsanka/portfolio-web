@@ -1,12 +1,14 @@
-import { Building2, FolderKanban, LayoutDashboard, LogOut, Menu, MessageSquareQuote, X } from 'lucide-react';
+import { Building2, FolderKanban, Inbox, LayoutDashboard, LogOut, Menu, MessageSquareQuote, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import Logo from '../../components/Logo';
 import { adminApi } from '../services/adminApi';
 import ContentManager from './ContentManager';
 import DashboardOverview from './DashboardOverview';
+import EnquiryManager from './EnquiryManager';
 
 const navigation = [
   ['overview', 'Overview', LayoutDashboard],
+  ['enquiries', 'Project enquiries', Inbox],
   ['projects', 'Projects', FolderKanban],
   ['reviews', 'Customer reviews', MessageSquareQuote],
   ['company-logos', 'Company logos', Building2],
@@ -15,7 +17,7 @@ const navigation = [
 export default function AdminDashboard({ username, onLogout }) {
   const [active, setActive] = useState('overview');
   const [mobileNav, setMobileNav] = useState(false);
-  const [data, setData] = useState({ projects: [], reviews: [], 'company-logos': [] });
+  const [data, setData] = useState({ enquiries: [], projects: [], reviews: [], 'company-logos': [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -23,7 +25,7 @@ export default function AdminDashboard({ username, onLogout }) {
     setLoading(true);
     setError('');
     try {
-      const entries = await Promise.all(['projects', 'reviews', 'company-logos'].map(async (type) => [type, (await adminApi.list(type)).items]));
+      const entries = await Promise.all(['enquiries', 'projects', 'reviews', 'company-logos'].map(async (type) => [type, (await adminApi.list(type)).items]));
       setData(Object.fromEntries(entries));
     } catch (loadError) {
       if (loadError.status === 401) {
@@ -59,7 +61,7 @@ export default function AdminDashboard({ username, onLogout }) {
       {mobileNav && <button className="admin-nav-scrim" onClick={() => setMobileNav(false)} aria-label="Close navigation" />}
       <section className="admin-main">
         <header className="admin-topbar"><button className="admin-mobile-menu" type="button" onClick={() => setMobileNav(true)} aria-label="Open navigation"><Menu size={21} /></button><div><span>AVENTRO PROJECTS</span><small>Content administration</small></div><a href="/" target="_blank" rel="noreferrer">View website</a></header>
-        <div className="admin-workspace">{error && <div className="admin-alert error">{error}<button onClick={loadAll}>Retry</button></div>}{active === 'overview' && <DashboardOverview data={data} loading={loading} />}{active !== 'overview' && <ContentManager type={active} items={Array.isArray(data[active]) ? data[active] : []} setItems={setItems(active)} loading={loading} onReload={loadAll} />}</div>
+        <div className="admin-workspace">{error && <div className="admin-alert error">{error}<button onClick={loadAll}>Retry</button></div>}{active === 'overview' && <DashboardOverview data={data} loading={loading} />}{active === 'enquiries' && <EnquiryManager items={data.enquiries} setItems={setItems('enquiries')} loading={loading} onReload={loadAll} />}{active !== 'overview' && active !== 'enquiries' && <ContentManager type={active} items={Array.isArray(data[active]) ? data[active] : []} setItems={setItems(active)} loading={loading} onReload={loadAll} />}</div>
       </section>
     </main>
   );
